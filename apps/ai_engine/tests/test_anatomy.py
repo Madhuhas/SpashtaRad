@@ -1,7 +1,15 @@
 import pytest
 
-from spashta_ai import AnatomyRegion, RoutingSource
+from spashta_ai import AnalysisEngine, AnatomyRegion, RoutingSource
 from spashta_ai.anatomy import normalise_body_part, route
+from spashta_ai.errors import UnsupportedImageError
+
+
+@pytest.mark.parametrize("modality", ["CT", "MR", "US", "OT"])
+def test_engine_refuses_modalities_the_models_were_not_built_for(dicom_factory, modality):
+    """Refused before any model is loaded, whatever the body part says."""
+    with pytest.raises(UnsupportedImageError, match=f"this image is {modality}"):
+        AnalysisEngine().analyze(dicom_factory(modality=modality, body_part="CHEST"))
 
 
 @pytest.mark.parametrize(

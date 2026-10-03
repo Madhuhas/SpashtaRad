@@ -10,4 +10,5 @@ class ModelUnavailableError(EngineError):
 
 
 class UnsupportedImageError(EngineError):
-    """The DICOM object has no pixel data the engine can interpret."""
+    """The DICOM object has no pixel data the engine can interpret, or is of a
+    modality the models were not built for."""

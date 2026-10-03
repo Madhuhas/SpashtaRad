@@ -11,7 +11,7 @@ from pathlib import Path
 from pydicom.dataset import Dataset
 
 from spashta_ai import anatomy
-from spashta_ai.errors import ModelUnavailableError
+from spashta_ai.errors import ModelUnavailableError, UnsupportedImageError
 from spashta_ai.pipelines.base import Pipeline
 from spashta_ai.preprocessing import to_display_array
 from spashta_ai.types import AnalysisResult, AnatomyRegion, RoutingDecision, RoutingSource
@@ -102,6 +102,11 @@ class AnalysisEngine:
                 routing can fall back on, so callers that de-identify first
                 should route beforehand and pass the decision in.
         """
+        modality = str(ds.get("Modality", "") or "").upper()
+        if modality and modality not in anatomy.ANALYSABLE_MODALITIES:
+            raise UnsupportedImageError(
+                f"AI analysis supports X-ray radiographs (CR/DX) only; this image is {modality}"
+            )
         image = to_display_array(ds)
 
         if preliminary is not None and preliminary.source is not RoutingSource.DEFAULT:

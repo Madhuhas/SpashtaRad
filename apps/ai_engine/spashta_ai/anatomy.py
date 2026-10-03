@@ -23,6 +23,12 @@ from spashta_ai.types import AnatomyRegion, RoutingDecision, RoutingSource
 # Modalities the projection-radiograph models were trained on.
 RADIOGRAPH_MODALITIES = frozenset({"CR", "DX"})
 
+# Modalities the engine will analyse at all. Every pipeline, the zero-shot
+# prompts included, is written for projection radiographs; on CT, MR or
+# ultrasound they return confident scores that mean nothing. A missing
+# Modality is let through and judged on the image.
+ANALYSABLE_MODALITIES = RADIOGRAPH_MODALITIES | {"RG"}
+
 _CHEST_PARTS = frozenset({"CHEST", "THORAX", "LUNG", "LUNGS", "RIB", "RIBS"})
 
 # MURA covers the upper extremity only. Lower-extremity studies are still MSK,
