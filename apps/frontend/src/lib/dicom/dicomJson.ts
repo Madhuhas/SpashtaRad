@@ -43,8 +43,14 @@ function scalarToString(value: unknown): string {
   return String(value);
 }
 
+/** An element's values as an array. dcmjs yields a bare buffer or scalar for some local-file elements. */
+function elementValues(element: DicomElement | undefined): unknown[] {
+  const raw: unknown = element?.Value ?? [];
+  return Array.isArray(raw) ? raw : [raw];
+}
+
 export function getStrings(dataset: DicomJson, tag: string): string[] {
-  return (dataset[tag]?.Value ?? []).map(scalarToString).filter(Boolean);
+  return elementValues(dataset[tag]).map(scalarToString).filter(Boolean);
 }
 
 export function getString(dataset: DicomJson, tag: string): string | undefined {
@@ -84,7 +90,7 @@ export function formatElement(element: DicomElement): string {
     return `Sequence (${count} item${count === 1 ? '' : 's'})`;
   }
   if (element.BulkDataURI || element.InlineBinary) return '<binary data>';
-  const values = element.Value ?? [];
+  const values = elementValues(element);
   if (values.some((value) => value instanceof ArrayBuffer || ArrayBuffer.isView(value))) {
     return '<binary data>';
   }

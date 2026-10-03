@@ -17,10 +17,23 @@ export default defineConfig({
     proxy: Object.fromEntries(proxied.map((path) => [path, { target: BACKEND, changeOrigin: false }])),
   },
   // Cornerstone's DICOM image loader spawns ES-module web workers that load
-  // WASM codecs; it must not be pre-bundled, while its CommonJS dependency does.
+  // WASM codecs; it must not be pre-bundled, while its CommonJS dependencies
+  // (the parser and the Emscripten codec glue) must be, or the browser gets
+  // raw CommonJS with no default export.
+  //
+  // The metadata package must be pre-bundled too, so the loader shares one
+  // instance with @cornerstonejs/core. Loaded raw it becomes a second registry:
+  // the loader stores pixel data in one and the viewport reads the other.
   optimizeDeps: {
     exclude: ['@cornerstonejs/dicom-image-loader'],
-    include: ['dicom-parser'],
+    include: [
+      'dicom-parser',
+      '@cornerstonejs/dicom-image-loader > @cornerstonejs/metadata',
+      '@cornerstonejs/dicom-image-loader > @cornerstonejs/codec-charls/decodewasmjs',
+      '@cornerstonejs/dicom-image-loader > @cornerstonejs/codec-libjpeg-turbo-8bit/decodewasmjs',
+      '@cornerstonejs/dicom-image-loader > @cornerstonejs/codec-openjpeg/decodewasmjs',
+      '@cornerstonejs/dicom-image-loader > @cornerstonejs/codec-openjph/wasmjs',
+    ],
   },
   worker: { format: 'es' },
   build: { target: 'es2022', chunkSizeWarningLimit: 4000 },

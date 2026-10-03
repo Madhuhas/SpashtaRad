@@ -1,6 +1,6 @@
 import { Enums } from '@cornerstonejs/core';
 import { ImageOff } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   attachViewport,
@@ -8,6 +8,8 @@ import {
   getEngine,
   getStackViewport,
   initViewer,
+  rememberDisplayDefaults,
+  resizeViewports,
 } from '../lib/cornerstone/viewer';
 import { useViewerStore, viewportIdForSlot } from '../state/viewerStore';
 import { HeatmapOverlay } from './HeatmapOverlay';
@@ -24,7 +26,6 @@ export function ViewportPane({ slot }: { slot: number }) {
   const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [voi, setVoi] = useState<VoiRange | null>(null);
-  const resizeFrame = useRef(0);
 
   const displaySet = useViewerStore((state) => {
     const id = state.slots[slot];
@@ -71,15 +72,9 @@ export function ViewportPane({ slot }: { slot: number }) {
   // Keep the rendering surface in step with the pane's size.
   useEffect(() => {
     if (!element || !enabled) return;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(resizeFrame.current);
-      resizeFrame.current = requestAnimationFrame(() => getEngine().resize(true, true));
-    });
+    const observer = new ResizeObserver(resizeViewports);
     observer.observe(element);
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(resizeFrame.current);
-    };
+    return () => observer.disconnect();
   }, [element, enabled]);
 
   // Track the displayed image and window so the corner annotations stay current.
@@ -113,6 +108,7 @@ export function ViewportPane({ slot }: { slot: number }) {
       .then(() => {
         if (cancelled) return;
         viewport.render();
+        rememberDisplayDefaults(viewportId);
         const range = viewport.getProperties().voiRange;
         if (range) setVoi(range);
       })
@@ -152,9 +148,11 @@ export function ViewportPane({ slot }: { slot: number }) {
       )}
 
       {displaySet ? (
-        <div className="pointer-events-none absolute inset-0 p-2 font-mono text-[11px] leading-4 text-ink-dim">
+        // White text with a dark outline stays legible over black background,
+        // mid-grey tissue and bright bone alike.
+        <div className="pointer-events-none absolute inset-0 p-2 font-mono text-[11px] leading-4 text-white [text-shadow:0_0_1px_#000,0_0_2px_#000,0_0_3px_#000,0_1px_2px_#000]">
           <div className="absolute top-2 left-2">
-            <div className="text-ink">{displaySet.patientName || 'Unknown patient'}</div>
+            <div className="font-semibold">{displaySet.patientName || 'Unknown patient'}</div>
             <div>{displaySet.patientId}</div>
           </div>
           <div className="absolute top-2 right-2 text-right">
@@ -165,7 +163,7 @@ export function ViewportPane({ slot }: { slot: number }) {
             <div>
               Im {imageIndex + 1}/{displaySet.images.length}
             </div>
-            {finding && <div className="text-accent">AI overlay: {finding.label}</div>}
+            {finding && <div>AI overlay: {finding.label}</div>}
           </div>
           {voi && (
             <div className="absolute right-2 bottom-2 text-right">

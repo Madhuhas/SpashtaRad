@@ -110,7 +110,7 @@ export function Toolbar() {
           onClick={() => setLayout(option.id)}
         />
       ))}
-      <span className="ml-auto hidden text-[11px] text-ink-faint lg:block">
+      <span className="ml-auto hidden truncate pl-3 text-[11px] text-ink-faint xl:block">
         Left: selected tool · Middle: pan · Right: zoom · Wheel: scroll
       </span>
     </div>

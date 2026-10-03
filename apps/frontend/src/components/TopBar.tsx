@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api/client';
 import type { EngineStatus, SmartContext } from '../lib/api/types';
 
-const SMART_SANDBOX_ISSUER = 'https://launch.smarthealthit.org/v/r4/fhir';
+// Must match SMART_SANDBOX_ISSUER in the backend's config.py, which allow-lists it.
+// The /sim/<options>/ segment selects a provider standalone launch; the sandbox
+// rejects standalone launches on its bare /v/r4/fhir address.
+const SMART_SANDBOX_ISSUER =
+  'https://launch.smarthealthit.org/v/r4/sim/WzIsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir';
 
 interface Props {
   smart: SmartContext | null;
