@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spashta-ai"
+version = "0.1.0"
+description = "SpashtaRad AI engine: anatomy routing, model pipelines and explainability"
+requires-python = ">=3.11"
+# Core dependencies are deliberately torch-free so that routing, preprocessing
+# and overlay rendering can be imported (and tested) without model runtimes.
+dependencies = [
+    "numpy>=1.26",
+    "pydicom>=3.0",
+    "pylibjpeg>=2.0",
+    "pylibjpeg-libjpeg>=2.1",
+    "pylibjpeg-openjpeg>=2.3",
+    "Pillow>=10.3",
+    "opencv-python-headless>=4.9",
+]
+
+[project.optional-dependencies]
+# Model runtimes. On CPU-only machines install torch from the CPU index first:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+models = [
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "torchxrayvision>=1.3",
+    "open_clip_torch>=2.24",
+    "transformers>=4.40",
+]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["spashta_ai*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Prompt tables read best one hypothesis per line.
+"spashta_ai/pipelines/zero_shot.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["models: requires torch and downloads model weights"]

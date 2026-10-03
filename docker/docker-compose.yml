@@ -1,0 +1,54 @@
+# Local development services for SpashtaRad AI.
+#
+#   docker compose -f docker/docker-compose.yml up -d                      # Orthanc only
+#   docker compose -f docker/docker-compose.yml --profile postgres up -d   # + PostgreSQL
+#
+# The defaults match apps/backend/app/core/config.py, so the backend talks to
+# this PACS without any extra configuration. Credentials here are for local
+# development only; ports are bound to loopback for the same reason.
+
+name: spashtarad
+
+services:
+  orthanc:
+    # Pin ORTHANC_IMAGE_TAG to a specific release for anything beyond local dev.
+    image: orthancteam/orthanc:${ORTHANC_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8042:8042"   # REST + DICOMweb (http://localhost:8042/dicom-web)
+      - "127.0.0.1:4242:4242"   # DIMSE (C-STORE from modalities / test tools)
+    environment:
+      ORTHANC__NAME: "SpashtaRad Dev PACS"
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
+      ORTHANC__REGISTERED_USERS: |
+        {"${ORTHANC_USERNAME:-spashtarad}": "${ORTHANC_PASSWORD:-spashtarad}"}
+      ORTHANC__DICOM_AET: "SPASHTARAD"
+      # Accept C-STORE from any AE title; fine on loopback, not on a real network.
+      ORTHANC__DICOM_CHECK_CALLED_AET: "false"
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+      ORTHANC__DICOM_WEB__ROOT: "/dicom-web/"
+      ORTHANC__DICOM_WEB__ENABLE_WADO: "true"
+    volumes:
+      - orthanc-data:/var/lib/orthanc/db
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-spashtarad}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spashtarad}
+      POSTGRES_DB: ${POSTGRES_DB:-spashtarad}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  orthanc-data:
+  postgres-data:

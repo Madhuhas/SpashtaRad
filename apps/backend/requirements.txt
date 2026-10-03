@@ -1,0 +1,24 @@
+# SpashtaRad backend runtime dependencies.
+#
+#   pip install -r requirements.txt
+#
+# The AI engine is installed from the sibling directory. Its torch-free core is
+# enough to start the API; install apps/ai_engine/requirements.txt as well to
+# enable model inference.
+
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+sqlalchemy[asyncio]>=2.0.30
+aiosqlite>=0.20
+httpx>=0.27
+python-multipart>=0.0.9
+pydicom>=3.0
+numpy>=1.26
+PyJWT[crypto]>=2.8
+
+# PostgreSQL driver (only needed when SPASHTA_DATABASE_URL points at Postgres)
+# asyncpg>=0.29
+
+-e ../ai_engine

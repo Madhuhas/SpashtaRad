@@ -1,0 +1,43 @@
+# --- Secrets / local configuration ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Node ---
+node_modules/
+apps/frontend/dist/
+*.tsbuildinfo
+
+# --- Runtime data (SQLite database, rendered heatmaps) ---
+# Anchored so the packaged apps/backend/app/data/ (terminology map) stays tracked.
+/data/
+/apps/backend/data/
+
+# --- Medical images and model weights: never commit ---
+*.dcm
+*.dicom
+*.nii
+*.nii.gz
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

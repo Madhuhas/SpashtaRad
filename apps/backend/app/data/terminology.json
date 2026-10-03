@@ -1,0 +1,142 @@
+{
+  "_meta": {
+    "description": "Seed mapping from model output labels to ICD-10-CM and SNOMED CT concepts.",
+    "verified": false,
+    "notice": "These codes were assembled by hand as a starting point. Validate every entry against a licensed terminology server (e.g. Snowstorm for SNOMED CT, the CMS ICD-10-CM release) before clinical or billing use. A null code means no confident mapping is provided."
+  },
+  "CHEST": {
+    "Atelectasis": {
+      "phrase": "atelectasis",
+      "severity": "warning",
+      "icd10": { "code": "J98.11", "display": "Atelectasis" },
+      "snomed": { "code": "46621007", "display": "Atelectasis" }
+    },
+    "Consolidation": {
+      "phrase": "pulmonary consolidation",
+      "severity": "warning",
+      "icd10": { "code": "R91.8", "display": "Other nonspecific abnormal finding of lung field" },
+      "snomed": { "code": "95436008", "display": "Lung consolidation" }
+    },
+    "Infiltration": {
+      "phrase": "pulmonary infiltrate",
+      "severity": "warning",
+      "icd10": { "code": "R91.8", "display": "Other nonspecific abnormal finding of lung field" },
+      "snomed": { "code": "409609008", "display": "Radiologic infiltrate of lung" }
+    },
+    "Pneumothorax": {
+      "phrase": "pneumothorax",
+      "severity": "critical",
+      "icd10": { "code": "J93.9", "display": "Pneumothorax, unspecified" },
+      "snomed": { "code": "36118008", "display": "Pneumothorax" }
+    },
+    "Edema": {
+      "phrase": "pulmonary edema",
+      "severity": "warning",
+      "icd10": { "code": "J81.1", "display": "Chronic pulmonary edema (includes pulmonary edema NOS)" },
+      "snomed": { "code": "19242006", "display": "Pulmonary edema" }
+    },
+    "Emphysema": {
+      "phrase": "emphysema",
+      "severity": "warning",
+      "icd10": { "code": "J43.9", "display": "Emphysema, unspecified" },
+      "snomed": { "code": "87433001", "display": "Pulmonary emphysema" }
+    },
+    "Fibrosis": {
+      "phrase": "pulmonary fibrosis",
+      "severity": "warning",
+      "icd10": { "code": "J84.10", "display": "Pulmonary fibrosis, unspecified" },
+      "snomed": { "code": "51615001", "display": "Fibrosis of lung" }
+    },
+    "Effusion": {
+      "phrase": "pleural effusion",
+      "severity": "warning",
+      "icd10": { "code": "J90", "display": "Pleural effusion, not elsewhere classified" },
+      "snomed": { "code": "60046008", "display": "Pleural effusion" }
+    },
+    "Pneumonia": {
+      "phrase": "pneumonia",
+      "severity": "warning",
+      "icd10": { "code": "J18.9", "display": "Pneumonia, unspecified organism" },
+      "snomed": { "code": "233604007", "display": "Pneumonia" }
+    },
+    "Pleural Thickening": {
+      "phrase": "pleural thickening",
+      "severity": "info",
+      "icd10": { "code": "J92.9", "display": "Pleural plaque without asbestos" },
+      "snomed": null
+    },
+    "Cardiomegaly": {
+      "phrase": "cardiomegaly",
+      "severity": "warning",
+      "icd10": { "code": "I51.7", "display": "Cardiomegaly" },
+      "snomed": { "code": "8186001", "display": "Cardiomegaly" }
+    },
+    "Nodule": {
+      "phrase": "pulmonary nodule",
+      "severity": "warning",
+      "icd10": { "code": "R91.1", "display": "Solitary pulmonary nodule" },
+      "snomed": { "code": "427359005", "display": "Solitary nodule of lung" }
+    },
+    "Mass": {
+      "phrase": "pulmonary mass",
+      "severity": "warning",
+      "icd10": { "code": "R91.8", "display": "Other nonspecific abnormal finding of lung field" },
+      "snomed": { "code": "309529002", "display": "Lung mass" }
+    },
+    "Hernia": {
+      "phrase": "diaphragmatic / hiatal hernia",
+      "severity": "info",
+      "icd10": { "code": "K44.9", "display": "Diaphragmatic hernia without obstruction or gangrene" },
+      "snomed": { "code": "39839004", "display": "Diaphragmatic hernia" }
+    },
+    "Lung Lesion": {
+      "phrase": "focal lung lesion",
+      "severity": "warning",
+      "icd10": { "code": "R91.8", "display": "Other nonspecific abnormal finding of lung field" },
+      "snomed": null
+    },
+    "Fracture": {
+      "phrase": "thoracic skeletal fracture",
+      "severity": "warning",
+      "icd10": null,
+      "snomed": { "code": "125605004", "display": "Fracture of bone" }
+    },
+    "Lung Opacity": {
+      "phrase": "lung opacity",
+      "severity": "warning",
+      "icd10": { "code": "R91.8", "display": "Other nonspecific abnormal finding of lung field" },
+      "snomed": null
+    },
+    "Enlarged Cardiomediastinum": {
+      "phrase": "enlarged cardiomediastinal silhouette",
+      "severity": "warning",
+      "icd10": null,
+      "snomed": null
+    }
+  },
+  "MSK": {
+    "Musculoskeletal abnormality": {
+      "phrase": "musculoskeletal abnormality",
+      "severity": "warning",
+      "icd10": null,
+      "snomed": null
+    },
+    "Fracture": {
+      "phrase": "fracture",
+      "severity": "warning",
+      "icd10": null,
+      "snomed": { "code": "125605004", "display": "Fracture of bone" }
+    },
+    "Dislocation": { "phrase": "joint dislocation", "severity": "warning", "icd10": null, "snomed": null },
+    "Bone lesion": { "phrase": "focal bone lesion", "severity": "warning", "icd10": null, "snomed": null },
+    "Degenerative change": { "phrase": "degenerative joint change", "severity": "info", "icd10": null, "snomed": null }
+  },
+  "GENERAL": {
+    "Pneumoperitoneum": {
+      "phrase": "free intraperitoneal air",
+      "severity": "critical",
+      "icd10": null,
+      "snomed": null
+    }
+  }
+}
