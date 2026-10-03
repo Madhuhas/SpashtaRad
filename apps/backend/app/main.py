@@ -24,6 +24,7 @@ from app.core.config import Settings, get_settings
 from app.core.logging import RequestIdMiddleware, configure_logging
 from app.db.database import Database
 from app.services.audit import AuditService
+from app.services.cds_auth import CdsClientVerifier
 from app.services.dicomweb import DicomWebClient
 from app.services.inference import Engine, InferenceService
 
@@ -65,6 +66,9 @@ def create_app(
         # requests (and bearer tokens) to another host.
         app.state.external_http = httpx.AsyncClient(
             timeout=20.0, follow_redirects=False, transport=external_transport
+        )
+        app.state.cds_verifier = CdsClientVerifier(
+            app.state.external_http, settings.cds_trusted_clients
         )
         app.state.inference = InferenceService(settings, engine)
         app.state.retrieve_audit_cache = {}

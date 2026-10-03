@@ -4,10 +4,9 @@ Mounted twice (see ``app.main``): at the spec's conventional root
 ``/cds-services`` for EHR registration, and under ``/api/v1/cds`` alongside
 the rest of the versioned API.
 
-Security note: the specification has the EHR authenticate each call with a
-signed JWT (``Authorization: Bearer``), verified against the EHR's registered
-JWKS. That check is not implemented yet, so these endpoints must only be
-exposed to trusted networks until it is.
+With ``SPASHTA_CDS_AUTH_MODE=jwt`` every hook and feedback call must carry the
+JWT that the specification has the EHR sign (``Authorization: Bearer``); see
+``app.services.cds_auth``. Discovery stays open: it only lists the services.
 """
 
 from __future__ import annotations
@@ -20,15 +19,56 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import client_ip, get_audit, get_external_http, get_session, get_settings
+from app.api.deps import (
+    client_ip,
+    get_audit,
+    get_cds_verifier,
+    get_external_http,
+    get_session,
+    get_settings,
+)
 from app.core.config import Settings
 from app.db.models import AiResult
 from app.services import cds, smart
-from app.services.audit import AuditAction, AuditService
+from app.services.audit import AuditAction, AuditOutcome, AuditService
+from app.services.cds_auth import CdsAuthError, CdsClientVerifier
 
 router = APIRouter(tags=["cds-hooks"])
 
 _MAX_RESULTS_CONSIDERED = 20
+_ANONYMOUS_CLIENT = "cds-client"
+
+
+async def get_cds_client(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    verifier: CdsClientVerifier = Depends(get_cds_verifier),
+    audit: AuditService = Depends(get_audit),
+) -> str:
+    """FastAPI dependency: the CDS client (EHR) making this call."""
+    if settings.cds_auth_mode == "none":
+        return _ANONYMOUS_CLIENT
+
+    # `aud` must name the endpoint being invoked, as the EHR addresses it.
+    # Feedback calls may carry either the feedback URL or the service's own.
+    url = settings.public_api_url.rstrip("/") + request.url.path
+    audiences = [url, url.removesuffix("/feedback")]
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    try:
+        if scheme.lower() != "bearer" or not token:
+            raise CdsAuthError("Bearer JWT required")
+        return await verifier.verify(token, audiences=audiences)
+    except CdsAuthError as exc:
+        await audit.record(
+            actor=_ANONYMOUS_CLIENT,
+            action=AuditAction.CDS_HOOK,
+            outcome=AuditOutcome.FAILURE,
+            source_ip=client_ip(request),
+            detail={"error": "unauthenticated", "reason": str(exc), "path": request.url.path},
+        )
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, str(exc), headers={"WWW-Authenticate": "Bearer"}
+        ) from exc
 
 
 class FhirAuthorization(BaseModel):
@@ -61,6 +101,7 @@ async def invoke(
     service_id: str,
     body: HookRequest,
     request: Request,
+    cds_client: str = Depends(get_cds_client),
     settings: Settings = Depends(get_settings),
     http: httpx.AsyncClient = Depends(get_external_http),
     session: AsyncSession = Depends(get_session),
@@ -111,7 +152,7 @@ async def invoke(
 
     cards = cds.build_cards(list(latest.values()), hook=body.hook, viewer_url=settings.frontend_url)
     await audit.record(
-        actor="cds-client",
+        actor=cds_client,
         action=AuditAction.CDS_HOOK,
         resource_type="Patient",
         resource_id=str(context_patient_id),
@@ -123,7 +164,9 @@ async def invoke(
 
 
 @router.post("/cds-services/{service_id}/feedback", status_code=status.HTTP_200_OK)
-async def feedback(service_id: str, body: dict[str, Any]) -> dict[str, Any]:
+async def feedback(
+    service_id: str, body: dict[str, Any], _: str = Depends(get_cds_client)
+) -> dict[str, Any]:
     """Accept card feedback (accepted / overridden). Currently acknowledged only."""
     if service_id not in cds.SERVICES_BY_ID:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown CDS service")

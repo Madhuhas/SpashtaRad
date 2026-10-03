@@ -24,7 +24,7 @@ ROLE_ADMIN = "admin"
 
 # Asymmetric algorithms only: accepting HS* with a JWKS-based verifier enables
 # key-confusion attacks.
-_ALLOWED_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "PS256"]
+ALLOWED_JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "PS256"]
 
 
 @dataclass(frozen=True)
@@ -60,7 +60,7 @@ def _verify_bearer(token: str, settings: Settings) -> Principal:
         claims = jwt.decode(
             token,
             signing_key.key,
-            algorithms=_ALLOWED_ALGORITHMS,
+            algorithms=ALLOWED_JWT_ALGORITHMS,
             issuer=settings.oidc_issuer,
             audience=settings.oidc_audience,
             options={"require": ["exp", "iss", "aud", "sub"]},

@@ -161,5 +161,16 @@ def test_production_accepts_hardened_configuration():
         _env_file=None,
         environment="production",
         auth_mode="oidc",
+        cds_auth_mode="jwt",
         deid_uid_salt="a-private-random-value",
     )
+
+
+def test_production_refuses_unauthenticated_cds_hooks():
+    with pytest.raises(ValidationError, match="SPASHTA_CDS_AUTH_MODE=none is not allowed"):
+        Settings(
+            _env_file=None,
+            environment="production",
+            auth_mode="oidc",
+            deid_uid_salt="a-private-random-value",
+        )

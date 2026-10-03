@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.services.audit import AuditService
+from app.services.cds_auth import CdsClientVerifier
 from app.services.dicomweb import DicomWebClient
 from app.services.inference import InferenceService
 
@@ -38,6 +39,10 @@ def get_audit(request: Request) -> AuditService:
 
 def get_pacs(request: Request) -> DicomWebClient:
     return request.app.state.pacs
+
+
+def get_cds_verifier(request: Request) -> CdsClientVerifier:
+    return request.app.state.cds_verifier
 
 
 def get_inference(request: Request) -> InferenceService:

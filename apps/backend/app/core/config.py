@@ -11,6 +11,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEV_UID_SALT = "dev-only-change-me"
 
+# Public SMART Health IT sandbox, as a simulated EHR for a provider standalone
+# launch. The path segment after /sim/ is the launcher's base64 option list;
+# the sandbox rejects standalone launches on its bare /v/r4/fhir address.
+SMART_SANDBOX_ISSUER = (
+    "https://launch.smarthealthit.org/v/r4/sim/"
+    "WzIsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir"
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -55,7 +63,14 @@ class Settings(BaseSettings):
     smart_scopes: str = "openid fhirUser patient/Patient.read patient/Encounter.read"
     # Only these FHIR servers may initiate a launch (prevents SSRF / token theft
     # through an attacker-supplied `iss`).
-    smart_allowed_issuers: list[str] = ["https://launch.smarthealthit.org/v/r4/fhir"]
+    smart_allowed_issuers: list[str] = [SMART_SANDBOX_ISSUER]
+
+    # --- CDS Hooks ------------------------------------------------------------
+    # "none" accepts unauthenticated hook calls and is refused in production.
+    cds_auth_mode: Literal["none", "jwt"] = "none"
+    # CDS clients (EHRs) allowed to call the hooks: the `iss` of the JWT they
+    # sign each request with, mapped to the URL of their JWKS.
+    cds_trusted_clients: dict[str, str] = {}
 
     # --- De-identification ----------------------------------------------------
     # Secret key for deterministic UID remapping. Rotate it and previously
@@ -76,6 +91,8 @@ class Settings(BaseSettings):
         problems = []
         if self.auth_mode == "dev":
             problems.append("SPASHTA_AUTH_MODE=dev is not allowed")
+        if self.cds_auth_mode == "none":
+            problems.append("SPASHTA_CDS_AUTH_MODE=none is not allowed")
         if self.deid_uid_salt.get_secret_value() == _DEV_UID_SALT:
             problems.append("SPASHTA_DEID_UID_SALT must be set to a private value")
         if any(origin == "*" for origin in self.cors_origins):

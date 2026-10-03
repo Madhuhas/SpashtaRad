@@ -12,7 +12,9 @@ from collections.abc import Iterator
 import httpx
 import numpy as np
 import pytest
+from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
+from jwt.algorithms import ECAlgorithm
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 from spashta_ai import AnalysisResult, Finding, RoutingDecision
@@ -25,6 +27,13 @@ from app.services.dicomweb import encode_multipart_related, parse_multipart_rela
 _DX_IMAGE_STORAGE = "1.2.840.10008.5.1.4.1.1.1.1"
 EHR_ISSUER = "https://ehr.test/fhir"
 PATIENT_ID = "SYN-0001"
+
+# The fake EHR as a CDS Hooks client: it signs hook calls with this key and
+# publishes the public half at CDS_JWKS_URL.
+CDS_CLIENT = "https://ehr.test"
+CDS_JWKS_URL = "https://ehr.test/jwks"
+CDS_KEY_ID = "cds-key-1"
+CDS_PRIVATE_KEY = ec.generate_private_key(ec.SECP384R1())
 
 
 def make_dataset(**overrides: object) -> Dataset:
@@ -181,6 +190,9 @@ def fake_ehr(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200, json={"access_token": "tok", "patient": "pat-1", "expires_in": 3600}
         )
+    if url == CDS_JWKS_URL:
+        jwk = ECAlgorithm.to_jwk(CDS_PRIVATE_KEY.public_key(), as_dict=True)
+        return httpx.Response(200, json={"keys": [{**jwk, "kid": CDS_KEY_ID, "use": "sig"}]})
     if request.headers.get("authorization") != "Bearer tok":
         return httpx.Response(401)
     if url == f"{EHR_ISSUER}/Patient/pat-1":
@@ -234,6 +246,22 @@ def engine() -> FakeEngine:
 def client(settings, pacs, engine) -> Iterator[TestClient]:
     app = create_app(
         settings,
+        engine=engine,
+        pacs_transport=pacs.transport,
+        external_transport=httpx.MockTransport(fake_ehr),
+    )
+    with TestClient(app, follow_redirects=False) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def cds_jwt_client(settings, pacs, engine) -> Iterator[TestClient]:
+    """The app with CDS Hooks JWT authentication on and the fake EHR registered."""
+    secured = settings.model_copy(
+        update={"cds_auth_mode": "jwt", "cds_trusted_clients": {CDS_CLIENT: CDS_JWKS_URL}}
+    )
+    app = create_app(
+        secured,
         engine=engine,
         pacs_transport=pacs.transport,
         external_transport=httpx.MockTransport(fake_ehr),

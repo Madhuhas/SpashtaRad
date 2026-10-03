@@ -4,11 +4,24 @@ from __future__ import annotations
 
 import io
 import sqlite3
+import time
+import uuid
 
+import jwt
 import pydicom
+from cryptography.hazmat.primitives.asymmetric import ec
 from PIL import Image
 
-from tests.conftest import EHR_ISSUER, PATIENT_ID, make_dataset, to_bytes
+from tests.conftest import (
+    CDS_CLIENT,
+    CDS_JWKS_URL,
+    CDS_KEY_ID,
+    CDS_PRIVATE_KEY,
+    EHR_ISSUER,
+    PATIENT_ID,
+    make_dataset,
+    to_bytes,
+)
 
 
 def _upload(ds):
@@ -258,6 +271,88 @@ def test_cds_ignores_fhir_server_outside_allow_list(client):
     )
     del body["prefetch"]
     assert client.post("/cds-services/spashtarad-imaging-alert", json=body).json() == {"cards": []}
+
+
+_CDS_PATH = "/cds-services/spashtarad-imaging-alert"
+_CDS_URL = f"http://localhost:8000{_CDS_PATH}"
+
+
+def _cds_token(key=CDS_PRIVATE_KEY, *, algorithm="ES384", headers=None, **claims) -> str:
+    now = int(time.time())
+    payload = {
+        "iss": CDS_CLIENT,
+        "aud": _CDS_URL,
+        "iat": now,
+        "exp": now + 300,
+        "jti": str(uuid.uuid4()),
+        **claims,
+    }
+    return jwt.encode(
+        payload, key, algorithm=algorithm, headers={"kid": CDS_KEY_ID, **(headers or {})}
+    )
+
+
+def _cds_call(client, token: str | None, path: str = _CDS_PATH):
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return client.post(path, json=_hook_body("patient-view"), headers=headers)
+
+
+def test_cds_jwt_accepts_registered_client_and_audits_it(cds_jwt_client):
+    cds_jwt_client.post("/api/v1/ai/analyze-upload", files=_upload(make_dataset()))
+
+    response = _cds_call(cds_jwt_client, _cds_token())
+    assert response.status_code == 200, response.text
+    assert len(response.json()["cards"]) == 1
+
+    events = cds_jwt_client.get("/api/v1/audit/events").json()
+    hook_event = next(event for event in events if event["action"] == "cds.hook")
+    assert hook_event["actor"] == CDS_CLIENT and hook_event["outcome"] == "success"
+
+    # Both mounts are valid audiences, as is a `jku` naming the registered JWKS.
+    versioned = "/api/v1/cds" + _CDS_PATH
+    token = _cds_token(aud=f"http://localhost:8000{versioned}", headers={"jku": CDS_JWKS_URL})
+    assert _cds_call(cds_jwt_client, token, versioned).status_code == 200
+    # Discovery needs no token.
+    assert cds_jwt_client.get("/cds-services").status_code == 200
+
+
+def test_cds_jwt_rejects_untrusted_callers(cds_jwt_client):
+    other_key = ec.generate_private_key(ec.SECP384R1())
+    now = int(time.time())
+    # Expected reason -> token that must be refused for that reason.
+    rejected = {
+        "Bearer JWT required": None,
+        "Malformed JWT": "not-a-jwt",
+        "not a registered CDS client": _cds_token(iss="https://attacker.test"),
+        "Signature verification failed": _cds_token(other_key),
+        "Audience": _cds_token(aud="https://other-service.test/cds-services/x"),
+        "expired": _cds_token(iat=now - 900, exp=now - 600),
+        "lifetime is too long": _cds_token(exp=now + 86400),
+        "jti": _cds_token(jti=None),
+        "'jku' does not match": _cds_token(headers={"jku": "https://attacker.test/jwks"}),
+        "algorithm is not accepted": _cds_token("x" * 48, algorithm="HS384"),
+        "not in the client's registered JWKS": _cds_token(headers={"kid": "rotated-away"}),
+    }
+    for reason, token in rejected.items():
+        response = _cds_call(cds_jwt_client, token)
+        assert response.status_code == 401, f"{reason}: {response.status_code} {response.text}"
+        assert reason in response.json()["detail"]
+        assert response.headers["www-authenticate"] == "Bearer"
+
+    feedback = cds_jwt_client.post(f"{_CDS_PATH}/feedback", json={"feedback": []})
+    assert feedback.status_code == 401
+
+    events = cds_jwt_client.get("/api/v1/audit/events?limit=100").json()
+    failures = [e for e in events if e["action"] == "cds.hook" and e["outcome"] == "failure"]
+    assert len(failures) == len(rejected) + 1
+
+
+def test_cds_jwt_cannot_be_replayed(cds_jwt_client):
+    token = _cds_token()
+    assert _cds_call(cds_jwt_client, token).status_code == 200
+    replay = _cds_call(cds_jwt_client, token)
+    assert replay.status_code == 401
+    assert replay.json()["detail"] == "JWT has already been used"
 
 
 # --------------------------------------------------------------- SMART on FHIR
