@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 350" width="900" height="350" role="img" aria-labelledby="title desc" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="title">How SpashtaRad fits together</title>
+  <desc id="desc">The browser viewer talks only to the backend. The backend talks to the PACS, the AI engine, the EHR and the database.</desc>
+
+  <rect width="900" height="350" rx="12" fill="#0d1117"/>
+
+  <!-- connectors -->
+  <g fill="none" stroke="#30363d" stroke-width="1.5">
+    <path id="viewer-backend" d="M235 175 H350"/>
+    <path id="to-pacs" d="M550 160 C610 160 610 58 670 58"/>
+    <path id="to-ai" d="M550 170 C610 170 610 136 670 136"/>
+    <path id="to-ehr" d="M550 180 C610 180 610 214 670 214"/>
+    <path id="to-db" d="M550 190 C610 190 610 292 670 292"/>
+  </g>
+
+  <!-- data moving along the connectors -->
+  <g fill="#2dd4bf">
+    <circle r="3.5"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#viewer-backend"/></animateMotion></circle>
+    <circle r="3.5"><animateMotion dur="2.2s" begin="-1.1s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#viewer-backend"/></animateMotion></circle>
+    <circle r="3.5"><animateMotion dur="2.8s" begin="-0.2s" repeatCount="indefinite"><mpath href="#to-pacs"/></animateMotion></circle>
+    <circle r="3.5"><animateMotion dur="2.8s" begin="-0.9s" repeatCount="indefinite"><mpath href="#to-ai"/></animateMotion></circle>
+    <circle r="3.5"><animateMotion dur="2.8s" begin="-1.6s" repeatCount="indefinite"><mpath href="#to-ehr"/></animateMotion></circle>
+    <circle r="3.5"><animateMotion dur="2.8s" begin="-2.3s" repeatCount="indefinite"><mpath href="#to-db"/></animateMotion></circle>
+  </g>
+
+  <!-- boxes -->
+  <g fill="#161b22" stroke="#30363d" stroke-width="1.5">
+    <rect x="40" y="130" width="195" height="90" rx="8"/>
+    <rect x="350" y="130" width="200" height="90" rx="8" stroke="#2dd4bf"/>
+    <rect x="670" y="30" width="195" height="56" rx="8"/>
+    <rect x="670" y="108" width="195" height="56" rx="8"/>
+    <rect x="670" y="186" width="195" height="56" rx="8"/>
+    <rect x="670" y="264" width="195" height="56" rx="8"/>
+  </g>
+
+  <g fill="#e6edf3" font-size="16" font-weight="600" text-anchor="middle">
+    <text x="137" y="170">Viewer</text>
+    <text x="450" y="170">Backend</text>
+    <text x="767" y="54">PACS</text>
+    <text x="767" y="132">AI engine</text>
+    <text x="767" y="210">EHR</text>
+    <text x="767" y="288">Database</text>
+  </g>
+  <g fill="#8b949e" font-size="12.5" text-anchor="middle">
+    <text x="137" y="192">in the browser</text>
+    <text x="450" y="192">the only thing the viewer talks to</text>
+    <text x="767" y="73">images, over DICOMweb</text>
+    <text x="767" y="151">X-ray models and heatmaps</text>
+    <text x="767" y="229">SMART on FHIR, CDS Hooks</text>
+    <text x="767" y="307">results and audit log</text>
+  </g>
+  <text x="292" y="162" fill="#8b949e" font-size="11.5" text-anchor="middle">one origin</text>
+</svg>

@@ -1,155 +1,141 @@
-# SpashtaRad AI
+# SpashtaRad
 
-A radiology workstation with AI decision support: a web DICOM viewer, a DICOMweb
-gateway in front of a PACS, anatomy-routed image analysis with Grad-CAM
-explanations, and EHR integration through SMART on FHIR and CDS Hooks.
+A radiology viewer that shows an X-ray, what an AI model thinks is on it, and where in the image the model was looking.
 
-> **Research and decision-support software. Not a medical device.** It has no
-> regulatory clearance and must not be used for diagnosis or patient care.
+*Spashta* is Sanskrit for "clear".
 
-## Layout
+![Opening a chest X-ray from the worklist, running the analysis, and looking at the heatmap, a measurement, the draft report and a second study side by side](docs/images/demo.gif)
 
-| Path | What it is |
+> **Research software. Not a medical device.** It has no regulatory clearance and must not be used to diagnose or treat anyone.
+
+## Why
+
+Most AI tools for X-rays hand back a list of probabilities. "Mass: 84%" on its own is hard to trust and hard to check, because you cannot see what the model based it on.
+
+SpashtaRad puts three things next to each other: the image, the model's findings, and a heatmap of the regions that drove each finding. If the heatmap sits on the edge of the film or on a label, you know to ignore the score. If it sits on the lesion you were already looking at, the score means something.
+
+The second reason is plumbing. A viewer that only opens files from a laptop is a demo. Hospitals keep images in a PACS and patients in an EHR, so SpashtaRad speaks the standards those systems speak: DICOMweb for images, SMART on FHIR for launching from a patient's chart, and CDS Hooks for showing a finding inside the EHR.
+
+## How it works
+
+![The viewer talks only to the backend; the backend talks to the PACS, the AI engine, the EHR and the database](docs/images/architecture.svg)
+
+1. You open a study, either from the PACS worklist or by dropping a DICOM file on the page. The image is drawn in the browser by Cornerstone3D.
+2. You press **Analyse displayed image**. The backend fetches the image, strips the patient details from its header, and passes it to the AI engine.
+3. The engine reads the body part from the DICOM header and picks a model. Chest X-rays go to a TorchXRayVision DenseNet that scores 18 findings. Other X-rays go to BiomedCLIP, which compares the image against short text descriptions.
+4. For the strongest findings on a chest X-ray the engine computes a Grad-CAM heatmap. The viewer lays it over the image and keeps it aligned while you zoom, pan, rotate or flip.
+5. The findings become a draft report with suggested ICD-10 and SNOMED CT codes. A heatmap can be sent back to the PACS as a new series of the same study.
+6. Every analysis, every image retrieval and every read of a result is written to an audit log. Each entry is chained to the previous one by a hash, so a changed or deleted entry can be detected.
+
+The browser never talks to the PACS or the EHR directly. Everything goes through the backend, which holds the credentials and decides what is allowed.
+
+| | |
 | --- | --- |
-| `apps/ai_engine` | `spashta_ai` Python package: anatomy routing, model pipelines, Grad-CAM, overlays, DICOM Secondary Capture export |
-| `apps/backend` | FastAPI service: DICOMweb proxy, AI orchestration, de-identification, audit log, SMART on FHIR, CDS Hooks |
-| `apps/frontend` | React + Cornerstone3D viewer (Vite, TypeScript, Tailwind, Zustand) |
-| `docker/` | Compose file for a local Orthanc PACS and optional PostgreSQL |
+| ![Findings list with a heatmap over the left lung](docs/images/viewer.png) | ![Draft report with suggested codes](docs/images/report.png) |
+| Findings, each with its own heatmap | Draft report and suggested codes |
+| ![Two studies side by side](docs/images/side-by-side.png) | ![DICOM header listing](docs/images/tags.png) |
+| Two studies side by side, with a measurement | The full DICOM header of the open image |
 
-```
-browser ── Vite dev server ──► backend ──► Orthanc (QIDO / WADO / STOW)
- viewer     (same-origin         │
-             proxy)              ├──► spashta_ai engine (in-process)
-                                 ├──► SQLite / PostgreSQL (results, audit chain)
-                                 └──► EHR FHIR server (SMART launch, CDS Hooks)
-```
+## Where it fits
 
-### AI pipelines
+SpashtaRad sits between the systems a radiology department already has.
 
-Each image is routed by its DICOM tags (body part, modality) to one pipeline:
+- **In front of a PACS.** It reads and writes through DICOMweb (QIDO-RS, WADO-RS, STOW-RS), so it should work with Orthanc, dcm4chee or a cloud DICOM store. So far it has only been run against the small stand-in server in this repository.
+- **Next to an EHR.** A clinician can launch the viewer from a patient's chart (SMART on FHIR) and it opens on that patient's studies. The EHR can also ask it for findings while a chart is open (CDS Hooks) and show them as a card.
+- **On one machine.** The three parts run on a laptop without a GPU. The first analysis takes about half a minute while the model loads. After that a chest X-ray takes a few seconds.
 
-| Pipeline | Model | Used for |
-| --- | --- | --- |
-| `chest-xrv` | TorchXRayVision DenseNet121 (`densenet121-res224-all`) | Chest radiographs, 18 pathologies, Grad-CAM heatmaps |
-| `msk-mura` | DenseNet169 from a MURA-style checkpoint **you supply** | Musculoskeletal radiographs |
-| `biomedclip-zero-shot` | BiomedCLIP | Fallback for everything else, and for MSK when no checkpoint is configured |
+| Folder | What is in it |
+| --- | --- |
+| `apps/ai_engine` | The models, the routing by body part, Grad-CAM, and the code that writes a heatmap as a DICOM image |
+| `apps/backend` | FastAPI service: PACS gateway, analysis, de-identification, audit log, SMART on FHIR, CDS Hooks |
+| `apps/frontend` | The viewer: React, Cornerstone3D, Tailwind |
+| `docker` | Compose file for a local Orthanc PACS and an optional PostgreSQL |
+| `scripts` | A helper that downloads a few public test images |
 
-Images are de-identified before they reach a model. Results, heatmaps and an
-audit event are stored for every analysis; the audit log is a hash chain that
-`GET /api/v1/audit/verify` re-checks.
+## When to use it
 
-## Prerequisites
+Use it to:
 
-- Python 3.11+
-- Node.js 22+
-- Docker (only for the local PACS / PostgreSQL)
+- try AI models on X-rays and see what they are reacting to
+- learn or teach how a viewer, a PACS and an EHR are wired together with open standards
+- start a research prototype without writing the DICOM and FHIR parts yourself
 
-## Setup
+Do not use it to:
 
-Commands are PowerShell, run from the repository root.
+- read real patient studies or make any clinical decision
+- analyse CT, MR or ultrasound. Those images open and display, but the analysis is refused, because the models were built for X-rays and give confident nonsense on anything else
+- judge bone X-rays with any confidence. There is no trained musculoskeletal model in the repository (see the limitations below)
+
+## Running it
+
+You need Python 3.11 or newer and Node.js 22 or newer. Docker is optional. The commands are for PowerShell, from the repository root.
 
 ```powershell
-# Python: one virtual environment for both packages
+# Python: one environment for the engine and the backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu   # CPU-only build
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -r apps\ai_engine\requirements.txt
 pip install -r apps\backend\requirements-dev.txt
 
-# Frontend
+# Viewer
 cd apps\frontend; npm install; cd ..\..
 
-# Configuration (optional: every value has a development default)
-Copy-Item .env.example apps\backend\.env
+# A few public test images, saved to samples\
+python scripts\fetch_samples.py
 ```
 
-Model weights are downloaded on first use (TorchXRayVision from its release
-host, BiomedCLIP from the Hugging Face Hub), so the first analysis needs network
-access and takes noticeably longer.
-
-## Run
+Then start three things, each in its own terminal:
 
 ```powershell
-# 1. PACS (optional: the viewer can analyse an uploaded file without one)
+# 1. A PACS. With Docker:
 docker compose -f docker/docker-compose.yml up -d
+#    Without Docker, a small in-memory stand-in on the same address and login:
+cd apps\backend; python tools\dev_pacs.py ..\..\samples
 
-# 2. Backend, from apps\backend so that ./data and .env resolve there
-cd apps\backend
-uvicorn app.main:app --reload --port 8000
+# 2. The backend
+cd apps\backend; uvicorn app.main:app --port 8000
 
-# 3. Viewer, in a second terminal
-cd apps\frontend
-npm run dev
+# 3. The viewer
+cd apps\frontend; npm run dev
 ```
 
-Open http://localhost:5173. The dev server proxies `/api`, `/dicomweb`,
-`/cds-services` and `/fhir` to the backend, so the browser only ever talks to
-one origin. Set `SPASHTA_BACKEND_URL` if the backend is not on
-`http://127.0.0.1:8000`.
+Open http://localhost:5173. The worklist on the left shows the studies in the PACS. Pick the chest X-ray and press **Analyse displayed image**.
 
-- API docs: http://localhost:8000/docs
-- Orthanc: http://localhost:8042 (user `spashtarad`, password `spashtarad`)
-- With PostgreSQL: add `--profile postgres` to the compose command,
-  `pip install asyncpg`, and set `SPASHTA_DATABASE_URL` as shown in `.env.example`.
+The PACS is optional. Without one you can still drop a DICOM file on the page and analyse it.
 
-## API surface
+The model weights download the first time they are needed, so the first analysis needs an internet connection.
 
-| Route | Purpose |
-| --- | --- |
-| `GET /healthz`, `GET /readyz` | Liveness; readiness of database, PACS and AI pipelines |
-| `GET,POST /dicomweb/{path}` | Authenticated, audited proxy to the PACS (QIDO-RS, WADO-RS, STOW-RS) |
-| `POST /api/v1/dicom/upload` | Store a DICOM file in the PACS and report its anatomy routing |
-| `POST /api/v1/dicom/deidentify` | Return a header-de-identified copy of a DICOM file |
-| `GET /api/v1/ai/status` | Which pipelines are installed and loaded |
-| `POST /api/v1/ai/analyze` | Analyse an instance held in the PACS |
-| `POST /api/v1/ai/analyze-upload` | Analyse an uploaded file without storing it |
-| `GET /api/v1/ai/results[/{id}]` | Stored results for a study / one result |
-| `GET /api/v1/ai/results/{id}/heatmaps/{n}` | Grad-CAM overlay PNG |
-| `POST /api/v1/ai/results/{id}/export` | Write a finding back to the PACS as a Secondary Capture |
-| `GET /api/v1/audit/events`, `/verify` | Audit log and hash-chain verification |
-| `GET /api/v1/fhir/launch`, `/callback`, `/context`; `DELETE /session` | SMART on FHIR EHR launch |
-| `GET /cds-services`, `POST /cds-services/{id}` | CDS Hooks discovery and `patient-view` / `order-select` services |
+**Connect EHR (SMART sandbox)** in the top bar launches against the public SMART Health IT sandbox. Any practitioner and any password work there.
 
-## Tests and checks
-
-```powershell
-cd apps\ai_engine; pytest; ruff check .              # 22 tests; `-m "not models"` skips the ones that load weights
-cd apps\backend;   pytest; ruff check .              # 42 tests
-cd apps\frontend;  npm test; npm run build           # vitest, then tsc + production build
-```
+The interactive API documentation is at http://localhost:8000/docs.
 
 ## Configuration
 
-All backend settings are environment variables prefixed `SPASHTA_`; see
-[.env.example](.env.example) for the full list and
-[apps/backend/app/core/config.py](apps/backend/app/core/config.py) for the source of truth.
+Every backend setting is an environment variable that starts with `SPASHTA_`, and every one has a default that works for local development. [.env.example](.env.example) lists them all. To change any, copy that file to `apps/backend/.env`.
 
-With `SPASHTA_ENVIRONMENT=production` the backend refuses to start if
-authentication is still `dev`, the de-identification salt is the default, or
-CORS allows `*`.
+If you set `SPASHTA_ENVIRONMENT=production`, the backend refuses to start while any of the development shortcuts are still on: the login that trusts everyone, unauthenticated CDS Hooks, the default de-identification key, or a wildcard CORS origin.
 
-## Known limitations
+## Tests
 
-Read these before relying on any output.
+```powershell
+cd apps\ai_engine; pytest; ruff check .     # 26 tests, some of which load the real models
+cd apps\backend;   pytest; ruff check .     # 49 tests
+cd apps\frontend;  npm test; npm run build  # 9 tests, then a type check and a production build
+```
 
-- **MSK pipeline has no weights.** No freely licensed MURA checkpoint is bundled
-  or downloaded. Until `SPASHTA_AI_MSK_WEIGHTS_PATH` points at one,
-  musculoskeletal studies fall back to zero-shot, which is far weaker.
-- **Zero-shot scores are not calibrated probabilities.** They rank text
-  hypotheses against each other; results mark them `calibrated: false`.
-- **Terminology codes are an unverified seed map.** The ICD-10 / SNOMED CT
-  mappings in `apps/backend/app/data/terminology.json` have not been reviewed by
-  a clinical coder, and several labels have no mapping.
-- **CDS Hooks requests are not authenticated.** The JWT that an EHR sends with
-  each hook call is not verified yet; do not expose `/cds-services` publicly.
-- **De-identification covers metadata only.** Text burned into the pixel data
-  is not detected or removed.
-- **PACS and EHR paths are tested against fakes.** The DICOMweb client and the
-  SMART launch are covered by tests using an in-memory PACS and a fake EHR, not
-  yet against a running Orthanc or a real EHR sandbox. `docker/docker-compose.yml`
-  has not been exercised either.
-- **Dev authentication trusts every request.** `SPASHTA_AUTH_MODE=dev` is for
-  local work only; use `oidc` anywhere else.
-- **Schema is created with `create_all`.** There are no migrations yet.
-- **Models are research models** trained on public datasets; they will produce
-  confident findings on images outside their training distribution.
+The viewer was also driven through Chrome by script, against both the dev server and the production build: opening files and PACS studies, every toolbar button, measurements, layouts, analysis, the heatmap following a flip and a rotation, and sending a heatmap back to the PACS.
+
+## Limitations
+
+These matter. Please read them before you rely on anything the software shows.
+
+- **The findings have not been validated.** The models are public research models. None of the test images has a confirmed diagnosis, so nothing here says the scores or the heatmap positions are right.
+- **No trained model for bones.** There is no freely licensed MURA checkpoint to ship. Until you set `SPASHTA_AI_MSK_WEIGHTS_PATH` to one, bone X-rays fall back to BiomedCLIP, which is much weaker and whose scores are not probabilities.
+- **The diagnosis codes are a starting list.** The ICD-10 and SNOMED CT mappings have not been reviewed by a clinical coder, and some findings have no code.
+- **De-identification covers the header only.** Names burned into the image itself are not detected.
+- **Not yet run against a real PACS.** The PACS features were tested against `tools/dev_pacs.py`, which was written for this project. The Orthanc compose file has not been started.
+- **EHR features are tested against sandboxes and test doubles.** The SMART launch works against the public sandbox as a standalone launch. A launch started from inside an EHR, and CDS Hooks called by a real EHR, have not been tried. If the EHR refuses the launch, the user currently sees a raw error message.
+- **CDS Hooks authentication is off by default.** Turn it on with `SPASHTA_CDS_AUTH_MODE=jwt` and list each EHR in `SPASHTA_CDS_TRUSTED_CLIENTS` before exposing `/cds-services`. Its replay protection is held in memory, so it only works with a single backend process.
+- **The development login trusts every request.** Use `SPASHTA_AUTH_MODE=oidc` anywhere other than your own machine.
+- **No database migrations yet.** Tables are created on startup.
